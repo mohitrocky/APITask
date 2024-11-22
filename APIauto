@@ -1,0 +1,64 @@
+
+import io.restassured.response.Response;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import org.testng.Assert;
+import org.testng.annotations.Test;
+
+import java.util.ArrayList;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+
+public class ApiTest {
+
+    String blockHash;
+    @Test (priority = 1)
+    public void validateBlockInfo() {
+        int blockHeight = 680000;
+        String blockHashEnd = "https://blockstream.info/api/block-height/{blockHeight}";
+        Response res = given()
+                .pathParams("blockHeight",blockHeight)
+                .when()
+                .get(blockHashEnd);
+        blockHash = res.getBody().asString();
+        String blockInfo = "https://blockstream.info/api/block/{blockHash}";
+        Response res1 = given()
+                .pathParams("blockHash",blockHash)
+                .when()
+                .get(blockInfo);
+        JSONObject js = new JSONObject(res1.getBody().asString());
+        int txnValue = Integer.valueOf(js.get("tx_count").toString());
+        Assert.assertEquals(txnValue,2875);
+    }
+
+    @Test(priority = 2)
+    public void validateTxnId() {
+        ArrayList<String> txnIdList = new ArrayList<>();
+        txnIdList.add("96d92f03000f625a38bf8cb91c01188a02b7972238cc6c4e0c6f334cf755004d");
+        txnIdList.add("6dd68336c085d5b7b694e2bf6f6c11bca589aea07b6f1c0232bd627c3d217074");
+        int page = 0;
+        while(page<=2850) {
+            String txnDetailsEp = "https://blockstream.info/api/block/" + blockHash + "/txs/{page}";
+            Response response = given()
+                    .pathParams("page",page)
+                    .when()
+                    .get(txnDetailsEp);
+            JSONArray js = new JSONArray(response.getBody().asString());
+            for(int i=0; i < js.length();i++) {
+                JSONObject jo = js.getJSONObject(i);
+                String txnID = jo.get("txid").toString();
+                if(txnIdList.contains(txnID)) {
+                    txnIdList.remove(txnID);
+                }
+            }
+            if(txnIdList.size()==0) {
+                break;
+            }
+            page+=25;
+        }
+        Assert.assertEquals(txnIdList.size(), 0);
+    }
+
+}
